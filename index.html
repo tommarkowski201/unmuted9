@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unmuted | Unified District Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #fdfcfb; --card: #ffffff; --text: #1e293b; --secondary: #64748b;
+            --gold: #d4af37; --danger: #f43f5e; --accent: #10b981; --admin: #4f46e5;
+        }
+        body { margin: 0; font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; overflow-x: hidden; }
+        
+        /* BREAK-GLASS SIDEBAR */
+        #sos-sidebar { width: 75px; background: var(--danger); color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; position: fixed; left: 0; top: 0; bottom: 0; z-index: 5000; transition: 0.3s; }
+        #sos-sidebar:hover { background: #b91c1c; width: 85px; }
+        #sos-text { transform: rotate(-90deg); white-space: nowrap; font-weight: 800; font-size: 1.2rem; letter-spacing: 3px; }
+        
+        #app-shell { margin-left: 75px; width: calc(100% - 75px); display: flex; flex-direction: column; min-height: 100vh; }
+        .screen { display: none; width: 100%; flex: 1; padding: 40px; box-sizing: border-box; animation: fadeIn 0.4s ease forwards; }
+        
+        .glass-card { background: var(--card); padding: 25px; border-radius: 24px; border: 1px solid #f1f5f9; box-shadow: 0 4px 20px rgba(0,0,0,0.03); margin-bottom: 20px; position: relative; }
+        .flagged-card { border-left: 8px solid var(--danger); background: #fff1f2; }
+        .shadow-post { opacity: 0.5; border: 1px dashed var(--secondary); }
+
+        /* UI ELEMENTS */
+        input, textarea, select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: 1px solid #e2e8f0; font-family: inherit; box-sizing: border-box; }
+        button { cursor: pointer; border: none; border-radius: 12px; font-weight: 600; padding: 12px; transition: 0.2s; font-family: inherit; }
+        .btn-primary { background: var(--gold); color: white; width: 100%; }
+        .btn-admin { background: var(--admin); color: white; font-size: 0.8rem; padding: 8px 15px; }
+        .btn-report { background: none; color: var(--secondary); font-size: 0.7rem; border: 1px solid #eee; width: auto; padding: 2px 8px; position: absolute; top: 10px; right: 10px; }
+
+        /* SESSION TIMER */
+        #session-timer { position: fixed; top: 15px; right: 15px; background: #1e293b; color: white; padding: 6px 15px; border-radius: 20px; font-size: 0.75rem; z-index: 6000; display: none; }
+
+        nav { position: fixed; bottom: 0; left: 75px; right: 0; background: white; padding: 12px; border-top: 1px solid #eee; display: none; justify-content: space-around; z-index: 4000; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @media print { .no-print, #sos-sidebar, nav, button { display: none !important; } #app-shell { margin: 0; width: 100%; } .transcript-view { border: none !important; } }
+    </style>
+</head>
+<body onmousedown="resetIdleTimer()" onkeydown="resetIdleTimer()">
+
+<div id="session-timer" class="no-print">Secure Session: <span id="time-left">10:00</span></div>
+
+<div id="sos-sidebar" class="no-print" onclick="handleBreakGlass()"><div id="sos-text">HELP NOW</div></div>
+
+<div id="app-shell">
+    <div id="screen-gate" class="screen" style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+        <div class="glass-card" style="max-width: 380px; text-align: center; width: 100%;">
+            <span style="font-size: 3rem;">💛</span>
+            <h1>Unmuted</h1>
+            <input type="number" id="loginID" placeholder="District ID" oninput="checkUserStatus()">
+            <div id="password-container" style="display: none;"><input type="password" id="userPass" placeholder="Password"></div>
+            <div id="setup-container" style="display: none; background: #fffbeb; padding: 15px; border-radius: 15px; margin-bottom: 10px;">
+                <p style="font-size: 0.8rem; color: #92400e;"><b>New User.</b> Set your secure password.</p>
+                <input type="password" id="newPass" placeholder="Create Password">
+            </div>
+            <button class="btn-primary" onclick="handleAuth()">Sign In</button>
+        </div>
+    </div>
+
+    <div id="screen-peer-feed" class="screen">
+        <h2>Community Wall</h2>
+        <div id="global-peer-feed"></div>
+    </div>
+
+    <div id="screen-wall" class="screen">
+        <div class="glass-card">
+            <h3>Post a Vent</h3>
+            <textarea id="vInput" rows="3" placeholder="How are you feeling today?"></textarea>
+            <button class="btn-primary" onclick="submitPost('VENT')">Post Anonymously</button>
+        </div>
+        <div id="student-feed"></div>
+    </div>
+
+    <div id="screen-staff" class="screen">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>Staff Hub</h2>
+            <div style="display:flex; gap:8px;">
+                <button class="btn-admin" onclick="nav('export')">📄 Export Case</button>
+                <button class="btn-admin" style="background:#1e293b" onclick="nav('admin')">Manage Users</button>
+            </div>
+        </div>
+        <div id="staff-alerts"></div>
+        <hr>
+        <div id="staff-feed"></div>
+    </div>
+
+    <div id="screen-export" class="screen">
+        <div class="no-print">
+            <h2>Transcript Generator</h2>
+            <div class="glass-card">
+                <select id="exportID" onchange="generateTranscript()"></select>
+                <button class="btn-primary" onclick="window.print()" style="margin-top:10px;">Print / Save as PDF</button>
+                <button onclick="nav('staff')" style="background:#eee; width:100%; margin-top:5px;">Back</button>
+            </div>
+        </div>
+        <div id="transcript-area" style="background:white; padding:30px; border:1px solid #ddd; font-family:monospace;"></div>
+    </div>
+
+    <div id="screen-admin" class="screen">
+        <h2>User Management</h2>
+        <div id="admin-user-list"></div>
+        <button class="btn-primary" onclick="nav('staff')">Return</button>
+    </div>
+
+    <nav id="bottom-nav" class="no-print">
+        <button onclick="nav('peer-feed')">Community</button>
+        <button onclick="nav('wall')">My Wall</button>
+        <button onclick="location.reload()">Logout</button>
+    </nav>
+</div>
+
+<script>
+    const STAFF_ROLES = { "000":"ADMIN", "888":"COUNSELOR", "777":"SRO" };
+    const BLACKLIST = ["hate", "kill", "die", "hurt", "stupid"];
+    
+    // LOAD ROSTER (100-120 + 1001/1002)
+    const BASE_ROSTER = ["1001", "1002"];
+    for(let i=100; i<=120; i++) BASE_ROSTER.push(i.toString());
+
+    let roster = JSON.parse(localStorage.getItem('unmuted_roster_v66') || JSON.stringify(BASE_ROSTER));
+    let users = JSON.parse(localStorage.getItem('unmuted_users_v66') || "{}");
+    let posts = JSON.parse(localStorage.getItem('unmuted_posts_v66') || "[]");
+    let bannedIDs = JSON.parse(localStorage.getItem('unmuted_banned_v66') || "[]");
+    
+    let currentUser = null, currentRole = 'STUDENT', idleTime = 0;
+
+    function checkUserStatus() {
+        const id = document.getElementById('loginID').value;
+        if (users[id]) { document.getElementById('password-container').style.display='block'; document.getElementById('setup-container').style.display='none'; }
+        else if (roster.includes(id) || STAFF_ROLES[id]) { document.getElementById('password-container').style.display='none'; document.getElementById('setup-container').style.display='block'; }
+    }
+
+    function handleAuth() {
+        const id = document.getElementById('loginID').value;
+        if (users[id] && document.getElementById('userPass').value === users[id]) {
+            login(id);
+        } else if (roster.includes(id) || STAFF_ROLES[id]) {
+            const p = document.getElementById('newPass').value;
+            if(p.length < 4) return alert("Min 4 characters.");
+            users[id] = p; localStorage.setItem('unmuted_users_v66', JSON.stringify(users));
+            login(id);
+        }
+    }
+
+    function login(id) {
+        currentUser = id; currentRole = STAFF_ROLES[id] || 'STUDENT';
+        if(currentRole !== 'STUDENT') {
+            document.getElementById('session-timer').style.display = 'block';
+            setInterval(() => {
+                idleTime++;
+                let rem = 600 - idleTime;
+                document.getElementById('time-left').innerText = `${Math.floor(rem/60)}:${(rem%60).toString().padStart(2,'0')}`;
+                if(idleTime >= 600) location.reload();
+            }, 1000);
+        }
+        nav(currentRole === 'STUDENT' ? 'peer-feed' : 'staff');
+    }
+
+    function resetIdleTimer() { idleTime = 0; }
+
+    function submitPost(type, parentId = null) {
+        const inputId = parentId ? 'reply-to-'+parentId : 'vInput';
+        const txt = document.getElementById(inputId).value;
+        if(!txt) return;
+
+        if(BLACKLIST.some(w => txt.toLowerCase().includes(w))) {
+            return alert("Community filter triggered. Please use supportive language.");
+        }
+
+        posts.unshift({
+            id: Date.now(), authorID: currentUser, text: txt, type: type, 
+            parentId: parentId, isHidden: bannedIDs.includes(currentUser), 
+            reports: 0, timestamp: Date.now()
+        });
+
+        localStorage.setItem('unmuted_posts_v66', JSON.stringify(posts));
+        document.getElementById(inputId).value = "";
+        renderAll();
+    }
+
+    function report(id) {
+        posts.find(p => p.id === id).reports++;
+        localStorage.setItem('unmuted_posts_v66', JSON.stringify(posts));
+        alert("Post flagged for review.");
+        renderAll();
+    }
+
+    function renderPeerFeed() {
+        const feed = document.getElementById('global-peer-feed');
+        feed.innerHTML = posts.filter(p => p.type === 'VENT' && !p.isHidden).map(p => `
+            <div class="glass-card">
+                <button class="btn-report" onclick="report(${p.id})">Report</button>
+                <p>${p.text}</p>
+                <div style="padding-left:15px; border-left:2px solid #eee;">
+                    ${posts.filter(r => r.parentId === p.id && !r.isHidden).map(r => `<p style="font-size:0.85rem; color:var(--secondary)">• ${r.text}</p>`).join("")}
+                    <input type="text" id="reply-to-${p.id}" placeholder="Reply..." style="width:70%; font-size:0.8rem; padding:5px;">
+                    <button class="btn-admin" style="padding:5px 10px;" onclick="submitPost('REPLY', ${p.id})">Send</button>
+                </div>
+            </div>`).join("");
+    }
+
+    function renderStaffView() {
+        const alerts = document.getElementById('staff-alerts');
+        const reported = posts.filter(p => p.reports > 0);
+        alerts.innerHTML = reported.length ? "<h3>⚠️ Reported Activity</h3>" + reported.map(p => `
+            <div class="glass-card flagged-card">
+                <small>Reported by ${p.reports} users | Author ID: ${p.authorID}</small>
+                <p>${p.text}</p>
+                <button onclick="deletePost(${p.id})">Remove</button>
+                <button onclick="clearReports(${p.id})">Dismiss</button>
+            </div>`).join("") : "";
+
+        document.getElementById('staff-feed').innerHTML = "<h3>Live Feed</h3>" + posts.map(p => `
+            <div class="glass-card ${p.isHidden ? 'shadow-post' : ''}">
+                <small>${p.type} | ID: ${p.authorID} ${p.isHidden ? '(Silenced)' : ''}</small>
+                <p>${p.text}</p>
+            </div>`).join("");
+    }
+
+    function generateTranscript() {
+        const id = document.getElementById('exportID').value;
+        const area = document.getElementById('transcript-area');
+        if(!id) return;
+        const history = posts.filter(p => p.authorID === id);
+        area.innerHTML = `<h2>TRANSCRIPT: ID ${id}</h2><hr>${history.map(p => `<p>[${new Date(p.timestamp).toLocaleString()}] ${p.type}: ${p.text}</p>`).join("")}`;
+    }
+
+    function deletePost(id) { posts = posts.filter(p => p.id !== id); localStorage.setItem('unmuted_posts_v66', JSON.stringify(posts)); renderAll(); }
+    function clearReports(id) { posts.find(p => p.id === id).reports = 0; localStorage.setItem('unmuted_posts_v66', JSON.stringify(posts)); renderAll(); }
+    function handleBreakGlass() { if(confirm("Notify safety & dial 988?")) window.location.href="tel:988"; }
+    
+    function renderAdminTable() {
+        document.getElementById('admin-user-list').innerHTML = roster.map(id => `
+            <div class="glass-card" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>ID: <b>${id}</b></span>
+                <button class="btn-admin" style="background:${bannedIDs.includes(id)?'var(--danger)':'#1e293b'}" 
+                onclick="toggleBan('${id}')">${bannedIDs.includes(id)?'Un-Silence':'Shadow Ban'}</button>
+            </div>`).join("");
+    }
+
+    function toggleBan(id) {
+        bannedIDs.includes(id) ? bannedIDs = bannedIDs.filter(b => b!==id) : bannedIDs.push(id);
+        localStorage.setItem('unmuted_banned_v66', JSON.stringify(bannedIDs));
+        renderAdminTable();
+    }
+
+    function renderAll() { 
+        if(currentRole === 'STUDENT') { renderPeerFeed(); } else { renderStaffView(); } 
+    }
+
+    function nav(id) {
+        document.querySelectorAll('.screen').forEach(s => s.style.display='none');
+        document.getElementById('screen-'+id).style.display = 'block';
+        document.getElementById('bottom-nav').style.display = (currentRole === 'STUDENT') ? 'flex' : 'none';
+        if(id === 'export') { 
+            document.getElementById('exportID').innerHTML = roster.map(i => `<option value="${i}">${i}</option>`).join("");
+            generateTranscript();
+        }
+        if(id === 'admin') renderAdminTable();
+        renderAll();
+    }
+</script>
+</body>
+</html>
